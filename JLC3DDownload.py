@@ -50,6 +50,13 @@ APP_DIR = os.path.join(os.path.expanduser("~"), ".jlc3d")
 CONFIG_FILE = os.path.join(APP_DIR, "config.ini")
 
 
+def get_runtime_dir():
+    """Return the packaged exe directory, or the script directory."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def ensure_app_dir():
     """确保应用配置目录存在"""
     if not os.path.exists(APP_DIR):
@@ -74,9 +81,9 @@ def load_download_path():
     return cfg.get("PATH", "DownloadPath", fallback=None)
 
 
-def default_desktop():
-    """返回用户桌面路径，作为默认下载目录"""
-    return os.path.join(os.path.expanduser("~"), "Desktop")
+def default_download_dir():
+    """Use the current runtime directory as the default download location."""
+    return get_runtime_dir()
 
 
 # =====================================================
@@ -150,7 +157,7 @@ class JLC3DApp(tk.Tk):
         self.center_window(self, self.app_width, self.app_height)
 
         self.configure(bg="#f8f9fa")
-        self.download_path = load_download_path() or default_desktop()
+        self.download_path = default_download_dir()
         self.last_download_file = None
 
         # --- 批量下载状态 ---
@@ -175,7 +182,7 @@ class JLC3DApp(tk.Tk):
 
         file_menu = tk.Menu(menu, tearoff=0)
         menu.add_cascade(label="文件", menu=file_menu)
-        file_menu.add_command(label="修改下载路径", command=self.choose_path)
+        file_menu.add_command(label="查看下载路径", command=self.choose_path)
         file_menu.add_command(label="批量导入 (Excel/CSV)", command=self.import_batch_file)
         file_menu.add_separator()
         file_menu.add_command(label="退出", command=self.quit)
@@ -263,11 +270,9 @@ class JLC3DApp(tk.Tk):
 
     def choose_path(self):
         """弹出目录选择对话框，修改下载保存路径"""
-        p = filedialog.askdirectory()
-        if p:
-            self.download_path = p
-            save_download_path(p)
-            self.path_label.config(text=f"保存至: {p}")
+        self.download_path = default_download_dir()
+        self.path_label.config(text=f"保存至: {self.download_path}")
+        messagebox.showinfo("提示", f"下载目录固定为程序当前目录：\n{self.download_path}")
 
     def locate_file(self):
         """在系统文件管理器中定位最近下载的文件"""
@@ -329,6 +334,7 @@ class JLC3DApp(tk.Tk):
             self.after(0, lambda: self.log_msg("下载 STEP 文件…"))
             model_file = get_model_file(model_uuid)
             data = download_step_file(model_file)
+            os.makedirs(self.download_path, exist_ok=True)
             filepath = os.path.join(self.download_path, f"{code}.step")
             with open(filepath, "wb") as f:
                 f.write(data)
@@ -473,6 +479,7 @@ class JLC3DApp(tk.Tk):
                 model_uuid = get_model_uuid(device)
                 model_file = get_model_file(model_uuid)
                 data = download_step_file(model_file)
+                os.makedirs(self.download_path, exist_ok=True)
                 filepath = os.path.join(self.download_path, f"{code}.step")
                 with open(filepath, "wb") as f:
                     f.write(data)
